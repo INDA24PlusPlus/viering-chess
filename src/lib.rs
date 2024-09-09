@@ -66,6 +66,7 @@ struct Position {
     y: u8,
 }
 
+#[derive(Clone, Copy)]
 struct PositionBuilder {
     position: Option<Position>,
     color: Color
@@ -85,6 +86,18 @@ impl PositionBuilder {
         let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
         if let Some(mut pos) = self.position {
             let y_pos: i32 = (pos.y as i32) + (amount * modifier);
+            if (0..=7).contains(&y_pos){
+                pos.y = y_pos as u8;
+                self.position = Some(pos) 
+            }
+        }
+        self
+    }
+
+    fn backward(mut self, amount: i32) -> Self {
+        let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
+        if let Some(mut pos) = self.position {
+            let y_pos: i32 = (pos.y as i32) - (amount * modifier);
             if (0..=7).contains(&y_pos){
                 pos.y = y_pos as u8;
                 self.position = Some(pos) 
@@ -299,7 +312,23 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
         }
 
         return false
-    } 
+    } else if source_tile.piece == PieceType::Knight {
+        let base_builder = PositionBuilder::set(from).color(game.turn);
+        let valid_positions = [
+            base_builder.forward(2).left(1).build(),
+            base_builder.forward(2).right(1).build(),
+            base_builder.forward(1).left(2).build(),
+            base_builder.forward(1).right(2).build(),
+            base_builder.backward(2).left(1).build(),
+            base_builder.backward(2).right(1).build(),
+            base_builder.backward(1).left(2).build(),
+            base_builder.backward(1).right(2).build()
+        ];
+
+        if valid_positions.iter().flatten().any(|pos| *pos == to){
+            return true
+        }
+    }
 
     false
 }
