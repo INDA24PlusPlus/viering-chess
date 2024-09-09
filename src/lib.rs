@@ -43,12 +43,84 @@ pub struct ChessGame {
     pub turn: Color
 }
 
+impl ChessGame {
+    fn get_tile(&self, pos: Position) -> u8 {
+        self.board[((8 - pos.y) * 8 + pos.x) as usize]
+    }
+
+
+    fn set_tile(&mut self, pos: Position, value: u8) {
+        self.board[((8 - pos.y) * 8 + pos.x) as usize] = value;
+    }
+}
+
 pub struct ChessTile {
     pub piece: PieceType,
     pub color: Color,
     pub has_piece: bool
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Position {
+    x: u8,
+    y: u8,
+}
+
+struct PositionBuilder {
+    position: Option<Position>,
+    color: Color
+}
+
+impl PositionBuilder {
+    fn set(position: Position) -> PositionBuilder {
+        PositionBuilder { position: Some(position), color: Color::White }
+    }
+
+    fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+
+    fn forward(mut self, amount: i32) -> Self {
+        let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
+        if let Some(mut pos) = self.position {
+            let y_pos: i32 = (pos.y as i32) + (amount * modifier);
+            if (0..=7).contains(&y_pos){
+                pos.y = y_pos as u8;
+                self.position = Some(pos) 
+            }
+        }
+        self
+    }
+
+    fn left(mut self, amount: i32) -> Self {
+        if let Some(mut pos) = self.position {
+            let x_pos: i32 = (pos.x as i32) - amount;
+            if (0..=7).contains(&x_pos){
+                pos.x = x_pos as u8;
+                self.position = Some(pos) 
+            }
+        }
+        self
+    }
+
+    fn right(mut self, amount: i32) -> Self {
+        if let Some(mut pos) = self.position {
+            let x_pos: i32 = (pos.x as i32) + amount;
+            if (0..=7).contains(&x_pos){
+                pos.x = x_pos as u8;
+                self.position = Some(pos) 
+            }
+        }
+        self
+    }
+
+    fn build(self) -> Option<Position> {
+        self.position
+    }
+}
+
+#[derive(PartialEq)]
 pub enum MoveResult {
     Allowed,
     Disallowed
@@ -118,27 +190,63 @@ pub fn from_fen(fen: &str) -> Option<ChessGame> {
     Some(game)
 }
 
-pub fn make_move(game: &mut ChessGame, team: Color, from: usize, to: usize) -> MoveResult {
+fn parse_pos(pos: &str) -> Option<Position> {
+    if pos.len() != 2 {
+        return None
+    }
+
+    let mut chars = pos.chars();
+    let col = chars.next().unwrap();
+    let row = chars.next().unwrap();
+    
+    let mut position = Position{x: 0, y: 0};
+
+    if "abcdefgh".contains(col){
+        position.x = col as u8 - 'a' as u8;
+    }
+    if let Some(digit) = row.to_digit(10) {
+        if !(1..=8).contains(&digit) {
+            return None
+        }
+        
+        position.y = digit as u8;
+    } else {
+        return None
+    }
+
+    Some(position)
+}
+
+pub fn make_move(game: &mut ChessGame, team: Color, from: &str, to: &str) -> MoveResult {
+    // Convert from and to to usize instead of str refs
+    let from = match parse_pos(from){
+        Some(val) => val,
+        None => return MoveResult::Disallowed
+    };
+    let to = match parse_pos(to){
+        Some(val) => val,
+        None => return MoveResult::Disallowed
+    };
+
+    // Make sure it's the players turn to move
     if game.turn != team {
         return MoveResult::Disallowed
     }
 
-    // Make sure tiles are in bounds
-    if from >= game.board.len() || to >= game.board.len() {
+    let source_tile = unpack_tile(game.get_tile(from));
+
+    // Make sure tile isn't empty
+    if !source_tile.has_piece {
         return MoveResult::Disallowed
     }
 
-    let tile = unpack_tile(game.board[from]);
-    // Make sure tile isn't empty
-    if !tile.has_piece {
-        return MoveResult::Disallowed 
-    }
     // Make sure the piece is the correct color
-    if tile.color != team {
+    if source_tile.color != team {
         return MoveResult::Disallowed
     }
+
     // Prevent friendly fire
-    let target_tile = unpack_tile(game.board[to]);
+    let target_tile = unpack_tile(game.get_tile(to));
     if target_tile.color == team && target_tile.has_piece {
         return MoveResult::Disallowed
     }
@@ -149,39 +257,45 @@ pub fn make_move(game: &mut ChessGame, team: Color, from: usize, to: usize) -> M
     }
 
     // Make the move
-    game.board[to] = game.board[from];
-    game.board[from] = 0;
+    game.set_tile(to, game.get_tile(from));
+    game.set_tile(from, 0);
 
     game.turn = if team == Color::White { Color::Black } else { Color::White };
     MoveResult::Allowed
 }
 
 // TODO make sure this works for black as well, just tested for white atm
-fn validate_move(game: &ChessGame, from: usize, to: usize) -> bool {
-    let source_tile = unpack_tile(game.board[from]);
-    let target_tile = unpack_tile(game.board[to]);
+fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
+    let source_tile = unpack_tile(game.get_tile(from));
+    let target_tile = unpack_tile(game.get_tile(to));
 
     if source_tile.piece == PieceType::Pawn {
-        let modifier: i32 = if source_tile.color == Color::White { 1 } else { -1 };
-        
+        let one_forward_option = PositionBuilder::set(from).color(game.turn).forward(1).build();
+        let two_forward_option = PositionBuilder::set(from).color(game.turn).forward(2).build();
+         
+        if let Some(one_forward) = one_forward_option {
+            if to == one_forward && !target_tile.has_piece {
+                return true
+            }
 
-        let pos_diff = (from as i32 - to as i32) * modifier;
-        let source_row = from / 8;
-        let source_col = from % 8;
-
-        // Regular 1 tile movement
-        if pos_diff == 8 && !target_tile.has_piece {
-            return true
+            if let Some(two_forward) = two_forward_option {
+                if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece {
+                    return true
+                }
+            }
         }
 
-        // 2 tile movement
-        if pos_diff == 16 && !target_tile.has_piece && ((source_tile.color == Color::White && source_row == 6) || source_tile.color == Color::Black && source_row == 1) {
-            return true
+        // TODO make sure pawn is standing on its own row 2
+        if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).left(1).build() {
+            if to == diagonal_left && target_tile.has_piece && target_tile.color != game.turn {
+                return true
+            }
         }
 
-        // Attacking other pieces
-        if ((pos_diff == 7 && source_col != 7) || (pos_diff == 9 && source_col != 0)) && target_tile.has_piece {
-            return true
+        if let Some(diagonal_right) = PositionBuilder::set(from).color(game.turn).forward(1).right(1).build() {
+            if to == diagonal_right && target_tile.has_piece && target_tile.color != game.turn {
+                return true
+            }
         }
 
         return false
