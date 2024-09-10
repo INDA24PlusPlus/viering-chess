@@ -282,23 +282,21 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
     let source_tile = unpack_tile(game.get_tile(from));
     let target_tile = unpack_tile(game.get_tile(to));
 
-    if source_tile.piece == PieceType::Pawn {
-        let one_forward_option = PositionBuilder::set(from).color(game.turn).forward(1).build();
-        let two_forward_option = PositionBuilder::set(from).color(game.turn).forward(2).build();
-         
-        if let Some(one_forward) = one_forward_option {
+    if source_tile.piece == PieceType::Pawn { 
+        if let Some(one_forward) = PositionBuilder::set(from).color(game.turn).forward(1).build() {
             if to == one_forward && !target_tile.has_piece {
                 return true
             }
 
-            if let Some(two_forward) = two_forward_option {
-                if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece {
+            if let Some(two_forward) = PositionBuilder::set(from).color(game.turn).forward(2).build() {
+                let initial_row = if game.turn == Color::White { 2 } else { 7 };
+                println!("{}", from.y);
+                if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece && from.y == initial_row {
                     return true
                 }
             }
         }
 
-        // TODO make sure pawn is standing on its own row 2
         if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).left(1).build() {
             if to == diagonal_left && target_tile.has_piece && target_tile.color != game.turn {
                 return true
@@ -323,6 +321,22 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
             base_builder.backward(2).right(1).build(),
             base_builder.backward(1).left(2).build(),
             base_builder.backward(1).right(2).build()
+        ];
+
+        if valid_positions.iter().flatten().any(|pos| *pos == to){
+            return true
+        }
+    } else if source_tile.piece == PieceType::King {
+        let base_builder = PositionBuilder::set(from).color(game.turn);
+        let valid_positions = [
+            base_builder.left(1).build(),
+            base_builder.forward(1).left(1).build(),
+            base_builder.forward(1).build(),
+            base_builder.forward(1).right(1).build(),
+            base_builder.right(1).build(),
+            base_builder.backward(1).right(1).build(),
+            base_builder.backward(1).build(),
+            base_builder.backward(1).left(1).build(),
         ];
 
         if valid_positions.iter().flatten().any(|pos| *pos == to){
