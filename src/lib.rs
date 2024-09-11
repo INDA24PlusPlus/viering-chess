@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum PieceType {
     Pawn = 0b000,
@@ -45,12 +47,11 @@ pub struct ChessGame {
 
 impl ChessGame {
     fn get_tile(&self, pos: Position) -> u8 {
-        self.board[((8 - pos.y) * 8 + pos.x) as usize]
+        self.board[((7 - pos.y) * 8 + pos.x) as usize]
     }
 
-
     fn set_tile(&mut self, pos: Position, value: u8) {
-        self.board[((8 - pos.y) * 8 + pos.x) as usize] = value;
+        self.board[((7 - pos.y) * 8 + pos.x) as usize] = value;
     }
 }
 
@@ -81,7 +82,24 @@ impl PositionBuilder {
         self.color = color;
         self
     }
-
+    
+    fn walk(mut self, amount: (i32, i32)) -> Self {
+        if let Some(mut pos) = self.position {
+            let new_pos: (i32, i32) = (
+                pos.x as i32 + amount.0,
+                pos.y as i32 + amount.1
+            );
+            if (0..=7).contains(&new_pos.0) && (0..=7).contains(&new_pos.1) {
+                pos.x = new_pos.0 as u8;
+                pos.y = new_pos.1 as u8;
+                self.position = Some(pos) 
+            }else {
+                self.position = None
+            }
+        }
+        self
+    }
+    
     fn forward(mut self, amount: i32) -> Self {
         let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
         if let Some(mut pos) = self.position {
@@ -89,44 +107,26 @@ impl PositionBuilder {
             if (0..=7).contains(&y_pos){
                 pos.y = y_pos as u8;
                 self.position = Some(pos) 
+            }else {
+                self.position = None
             }
         }
         self
     }
 
-    fn backward(mut self, amount: i32) -> Self {
+    fn _backward(mut self, amount: i32) -> Self {
         let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
         if let Some(mut pos) = self.position {
             let y_pos: i32 = (pos.y as i32) - (amount * modifier);
             if (0..=7).contains(&y_pos){
                 pos.y = y_pos as u8;
                 self.position = Some(pos) 
+            }else {
+                self.position = None
             }
         }
         self
-    }
-
-    fn left(mut self, amount: i32) -> Self {
-        if let Some(mut pos) = self.position {
-            let x_pos: i32 = (pos.x as i32) - amount;
-            if (0..=7).contains(&x_pos){
-                pos.x = x_pos as u8;
-                self.position = Some(pos) 
-            }
-        }
-        self
-    }
-
-    fn right(mut self, amount: i32) -> Self {
-        if let Some(mut pos) = self.position {
-            let x_pos: i32 = (pos.x as i32) + amount;
-            if (0..=7).contains(&x_pos){
-                pos.x = x_pos as u8;
-                self.position = Some(pos) 
-            }
-        }
-        self
-    }
+    } 
 
     fn build(self) -> Option<Position> {
         self.position
@@ -194,7 +194,7 @@ pub fn from_fen(fen: &str) -> Option<ChessGame> {
         _ => return None
     };
 
-    // TODO future segments
+    // TODO: future segments
     // segment 3: castling ability
     // segment 4: en passant target square
     // segment 5: halfmove clock
@@ -215,22 +215,26 @@ fn parse_pos(pos: &str) -> Option<Position> {
     let mut position = Position{x: 0, y: 0};
 
     if "abcdefgh".contains(col){
-        position.x = col as u8 - 'a' as u8;
+        position.x = col as u8 - b'a';
     }
     if let Some(digit) = row.to_digit(10) {
         if !(1..=8).contains(&digit) {
             return None
         }
         
-        position.y = digit as u8;
+        position.y = digit as u8 - 1;
     } else {
         return None
     }
-
     Some(position)
 }
 
 pub fn make_move(game: &mut ChessGame, team: Color, from: &str, to: &str) -> MoveResult {
+    // Make sure the piece moves
+    if from == to {
+        return MoveResult::Disallowed;
+    }
+
     // Convert from and to to usize instead of str refs
     let from = match parse_pos(from){
         Some(val) => val,
@@ -289,21 +293,20 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
             }
 
             if let Some(two_forward) = PositionBuilder::set(from).color(game.turn).forward(2).build() {
-                let initial_row = if game.turn == Color::White { 2 } else { 7 };
-                println!("{}", from.y);
+                let initial_row = if game.turn == Color::White { 1 } else { 6 };
                 if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece && from.y == initial_row {
                     return true
                 }
             }
         }
 
-        if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).left(1).build() {
+        if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).walk((-1, 0)).build() {
             if to == diagonal_left && target_tile.has_piece && target_tile.color != game.turn {
                 return true
             }
         }
 
-        if let Some(diagonal_right) = PositionBuilder::set(from).color(game.turn).forward(1).right(1).build() {
+        if let Some(diagonal_right) = PositionBuilder::set(from).color(game.turn).forward(1).walk((1, 0)).build() {
             if to == diagonal_right && target_tile.has_piece && target_tile.color != game.turn {
                 return true
             }
@@ -313,14 +316,14 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
     } else if source_tile.piece == PieceType::Knight {
         let base_builder = PositionBuilder::set(from).color(game.turn);
         let valid_positions = [
-            base_builder.forward(2).left(1).build(),
-            base_builder.forward(2).right(1).build(),
-            base_builder.forward(1).left(2).build(),
-            base_builder.forward(1).right(2).build(),
-            base_builder.backward(2).left(1).build(),
-            base_builder.backward(2).right(1).build(),
-            base_builder.backward(1).left(2).build(),
-            base_builder.backward(1).right(2).build()
+            base_builder.walk((-1, 2)).build(),
+            base_builder.walk((1, 2)).build(),
+            base_builder.walk((2, 1)).build(),
+            base_builder.walk((2, -1)).build(),
+            base_builder.walk((1, -2)).build(),
+            base_builder.walk((-1, -2)).build(),
+            base_builder.walk((-2, -1)).build(),
+            base_builder.walk((-2, 1)).build()
         ];
 
         if valid_positions.iter().flatten().any(|pos| *pos == to){
@@ -329,22 +332,66 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
     } else if source_tile.piece == PieceType::King {
         let base_builder = PositionBuilder::set(from).color(game.turn);
         let valid_positions = [
-            base_builder.left(1).build(),
-            base_builder.forward(1).left(1).build(),
-            base_builder.forward(1).build(),
-            base_builder.forward(1).right(1).build(),
-            base_builder.right(1).build(),
-            base_builder.backward(1).right(1).build(),
-            base_builder.backward(1).build(),
-            base_builder.backward(1).left(1).build(),
+            base_builder.walk((-1, 1)).build(),
+            base_builder.walk((0, 1)).build(),
+            base_builder.walk((1, 1)).build(),
+            base_builder.walk((-1, 0)).build(),
+            base_builder.walk((1, 0)).build(),
+            base_builder.walk((-1, -1)).build(),
+            base_builder.walk((0, -1)).build(),
+            base_builder.walk((1, -1)).build(),
         ];
 
         if valid_positions.iter().flatten().any(|pos| *pos == to){
             return true
         }
+    } else if source_tile.piece == PieceType::Rook {
+        let base_builder = PositionBuilder::set(from).color(game.turn);
+
+        let x_diff = to.x as i32 - from.x as i32;
+        let y_diff = to.y as i32 - from.y as i32;
+        
+        if x_diff != 0 && y_diff != 0 {
+            return false
+        }
+
+        let diff = max(x_diff.abs(), y_diff.abs());
+        
+        let max_move_len = if x_diff > 0 {
+            calc_max_move_len(game, base_builder, (1, 0), true)
+        }else if x_diff < 0 {
+            calc_max_move_len(game, base_builder, (-1, 0), true)
+        }else if y_diff > 0 {
+            calc_max_move_len(game, base_builder, (0, 1), true)
+        }else if y_diff < 0 {
+            calc_max_move_len(game, base_builder, (0, -1), true)
+        }else {
+            0
+        };
+
+        if diff <= max_move_len {
+            return true
+        }
     }
 
     false
+}
+
+fn calc_max_move_len(game: &ChessGame, base: PositionBuilder, direction: (i32, i32), can_capture: bool) -> i32 {
+    let mut move_len = 0;
+    let mut builder = base;
+    loop {
+        builder = builder.walk(direction);
+        if let Some(pos) = builder.position {
+            let tile = unpack_tile(game.get_tile(pos));
+            if tile.has_piece {
+                return if tile.color == game.turn { move_len } else if can_capture { move_len + 1} else { move_len };
+            }
+            move_len += 1;
+            continue
+        }
+        return move_len
+    }
 }
 
 pub fn pack_tile(piece: PieceType, color: Color, has_piece: bool) -> u8 {
