@@ -22,11 +22,13 @@ pub fn validate_knight_move(game: &ChessGame, from: Position, to: Position) -> b
 pub fn validate_pawn_move(game: &ChessGame, from: Position, to: Position) -> bool {
     let target_tile = unpack_tile(game.get_tile(to));
 
+    // Forward movement
     if let Some(one_forward) = PositionBuilder::set(from).color(game.turn).forward(1).build() {
         if to == one_forward && !target_tile.has_piece {
             return true
         }
 
+        // Double move when standing on initial position
         if let Some(two_forward) = PositionBuilder::set(from).color(game.turn).forward(2).build() {
             let initial_row = if game.turn == Color::White { 1 } else { 6 };
             if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece && from.y == initial_row {
@@ -35,12 +37,14 @@ pub fn validate_pawn_move(game: &ChessGame, from: Position, to: Position) -> boo
         }
     }
 
+    // Capture left
     if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).walk((-1, 0)).build() {
         if to == diagonal_left && target_tile.has_piece && target_tile.color != game.turn {
             return true
         }
     }
 
+    // Capture right
     if let Some(diagonal_right) = PositionBuilder::set(from).color(game.turn).forward(1).walk((1, 0)).build() {
         if to == diagonal_right && target_tile.has_piece && target_tile.color != game.turn {
             return true
@@ -111,4 +115,8 @@ pub fn validate_king_move(game: &ChessGame, from: Position, to: Position) -> boo
     ];
 
     return valid_positions.iter().flatten().any(|pos| *pos == to)
+}
+
+pub fn validate_queen_move(game: &ChessGame, from: Position, to: Position) -> bool {
+    validate_bishop_move(game, from, to) || validate_rook_move(game, from, to)
 }

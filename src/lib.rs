@@ -292,7 +292,7 @@ fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
         PieceType::Bishop => validate_bishop_move(game, from, to),
         PieceType::Rook => validate_rook_move(game, from, to),
         PieceType::King => validate_king_move(game, from, to),
-        _ => false
+        PieceType::Queen => validate_queen_move(game, from, to)
     }
 }
 
