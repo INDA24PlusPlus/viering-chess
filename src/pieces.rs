@@ -67,16 +67,10 @@ pub fn validate_rook_move(game: &ChessGame, from: Position, to: Position) -> boo
 
     let diff = max(x_diff.abs(), y_diff.abs());
     
-    let max_move_len = if x_diff > 0 {
-        calc_max_move_len(game, base_builder, (1, 0), true)
-    }else if x_diff < 0 {
-        calc_max_move_len(game, base_builder, (-1, 0), true)
-    }else if y_diff > 0 {
-        calc_max_move_len(game, base_builder, (0, 1), true)
-    }else if y_diff < 0 {
-        calc_max_move_len(game, base_builder, (0, -1), true)
-    }else {
-        0
+    let max_move_len = if x_diff != 0 {
+        calc_max_move_len(game, base_builder, (if x_diff > 0 { 1 } else { -1 }, 0), true)
+    } else {
+        calc_max_move_len(game, base_builder, (0, if y_diff > 0 { 1 } else { -1 }), true)
     };
 
     diff <= max_move_len
