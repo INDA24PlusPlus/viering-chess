@@ -1,3 +1,5 @@
+pub mod pieces;
+use pieces::*;
 use std::cmp::max;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -62,13 +64,13 @@ pub struct ChessTile {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-struct Position {
+pub struct Position {
     x: u8,
     y: u8,
 }
 
 #[derive(Clone, Copy)]
-struct PositionBuilder {
+pub struct PositionBuilder {
     position: Option<Position>,
     color: Color
 }
@@ -281,100 +283,17 @@ pub fn make_move(game: &mut ChessGame, team: Color, from: &str, to: &str) -> Mov
     MoveResult::Allowed
 }
 
-// TODO make sure this works for black as well, just tested for white atm
 fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
     let source_tile = unpack_tile(game.get_tile(from));
-    let target_tile = unpack_tile(game.get_tile(to));
-
-    if source_tile.piece == PieceType::Pawn { 
-        if let Some(one_forward) = PositionBuilder::set(from).color(game.turn).forward(1).build() {
-            if to == one_forward && !target_tile.has_piece {
-                return true
-            }
-
-            if let Some(two_forward) = PositionBuilder::set(from).color(game.turn).forward(2).build() {
-                let initial_row = if game.turn == Color::White { 1 } else { 6 };
-                if to == two_forward && !unpack_tile(game.get_tile(one_forward)).has_piece && !target_tile.has_piece && from.y == initial_row {
-                    return true
-                }
-            }
-        }
-
-        if let Some(diagonal_left) = PositionBuilder::set(from).color(game.turn).forward(1).walk((-1, 0)).build() {
-            if to == diagonal_left && target_tile.has_piece && target_tile.color != game.turn {
-                return true
-            }
-        }
-
-        if let Some(diagonal_right) = PositionBuilder::set(from).color(game.turn).forward(1).walk((1, 0)).build() {
-            if to == diagonal_right && target_tile.has_piece && target_tile.color != game.turn {
-                return true
-            }
-        }
-
-        return false
-    } else if source_tile.piece == PieceType::Knight {
-        let base_builder = PositionBuilder::set(from).color(game.turn);
-        let valid_positions = [
-            base_builder.walk((-1, 2)).build(),
-            base_builder.walk((1, 2)).build(),
-            base_builder.walk((2, 1)).build(),
-            base_builder.walk((2, -1)).build(),
-            base_builder.walk((1, -2)).build(),
-            base_builder.walk((-1, -2)).build(),
-            base_builder.walk((-2, -1)).build(),
-            base_builder.walk((-2, 1)).build()
-        ];
-
-        if valid_positions.iter().flatten().any(|pos| *pos == to){
-            return true
-        }
-    } else if source_tile.piece == PieceType::King {
-        let base_builder = PositionBuilder::set(from).color(game.turn);
-        let valid_positions = [
-            base_builder.walk((-1, 1)).build(),
-            base_builder.walk((0, 1)).build(),
-            base_builder.walk((1, 1)).build(),
-            base_builder.walk((-1, 0)).build(),
-            base_builder.walk((1, 0)).build(),
-            base_builder.walk((-1, -1)).build(),
-            base_builder.walk((0, -1)).build(),
-            base_builder.walk((1, -1)).build(),
-        ];
-
-        if valid_positions.iter().flatten().any(|pos| *pos == to){
-            return true
-        }
-    } else if source_tile.piece == PieceType::Rook {
-        let base_builder = PositionBuilder::set(from).color(game.turn);
-
-        let x_diff = to.x as i32 - from.x as i32;
-        let y_diff = to.y as i32 - from.y as i32;
         
-        if x_diff != 0 && y_diff != 0 {
-            return false
-        }
-
-        let diff = max(x_diff.abs(), y_diff.abs());
-        
-        let max_move_len = if x_diff > 0 {
-            calc_max_move_len(game, base_builder, (1, 0), true)
-        }else if x_diff < 0 {
-            calc_max_move_len(game, base_builder, (-1, 0), true)
-        }else if y_diff > 0 {
-            calc_max_move_len(game, base_builder, (0, 1), true)
-        }else if y_diff < 0 {
-            calc_max_move_len(game, base_builder, (0, -1), true)
-        }else {
-            0
-        };
-
-        if diff <= max_move_len {
-            return true
-        }
+    match source_tile.piece {
+        PieceType::Pawn => validate_pawn_move(game, from, to),
+        PieceType::Knight => validate_knight_move(game, from, to),
+        PieceType::Bishop => validate_bishop_move(game, from, to),
+        PieceType::Rook => validate_rook_move(game, from, to),
+        PieceType::King => validate_king_move(game, from, to),
+        _ => false
     }
-
-    false
 }
 
 fn calc_max_move_len(game: &ChessGame, base: PositionBuilder, direction: (i32, i32), can_capture: bool) -> i32 {
