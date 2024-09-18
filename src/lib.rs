@@ -1,6 +1,18 @@
 pub mod moves;
 use crate::moves::*;
 
+// TODO
+// Complete all TODO:s in this file lol
+// Make a function to get king positions (might be useful for displaying warning on king when checked)
+// Export board to fen string
+// Finish fen parsing
+// Implement checkmate (MAYBE DONE)
+// Implement stalemate
+// Implement piece switching
+// Implement castling
+// Implement en passant
+// (low priority) Implement threefold repetition
+
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Position {
     pub x: u8,
@@ -12,7 +24,6 @@ impl Position {
         if x > 7 || y > 7 {
             panic!("Attempt to initialize Position with out of bounds coordinates. Valid range is 0-7.");
         }
-
         Self { x, y }
     }
 }
@@ -76,12 +87,12 @@ pub enum MoveResult {
     Disallowed,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum GameState {
     Normal,
     Check(Color),
     Checkmate(Color),
-    Stalemate,
+    Draw,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -113,6 +124,7 @@ pub struct Game {
     pub squares: [Square; 8 * 8],
     pub turn: Color,
     pub game_state: GameState,
+    moves_since_capture: u32,
 }
 
 impl Game {
@@ -121,6 +133,7 @@ impl Game {
             squares: [None; 8 * 8],
             turn: Color::White,
             game_state: GameState::Normal,
+            moves_since_capture: 0,
         }
     }
 
@@ -197,7 +210,7 @@ impl Game {
         // segment 5: halfmove clock
         // segment 6: fullmove counter
 
-        // TODO this should probably check game state as well, right?
+        self.game_state = check_game_state(&self);
     }
 
     fn pseudo_validate_move(&self, from: Position, to: Position) -> bool {
@@ -235,7 +248,7 @@ impl Game {
             GameState::Normal => true,
             GameState::Check(color) => source_square.color != color,
             GameState::Checkmate(color) => source_square.color != color, // TODO not implemented
-            GameState::Stalemate => true,                                // TODO not implemented
+            GameState::Draw => true,                                     // TODO not implemented
         }
     }
 
@@ -260,8 +273,11 @@ impl Game {
             }
         }
 
+        let mut target_square_had_piece = false;
+
         // Prevent friendly fire
         if let Some(target_square) = target_square {
+            target_square_had_piece = true;
             if target_square.color == self.turn {
                 return MoveResult::Disallowed;
             }
@@ -275,12 +291,20 @@ impl Game {
         self.set_square(to, source_square);
         self.set_square(from, None);
 
+        self.moves_since_capture += 1;
+        if target_square_had_piece {
+            self.moves_since_capture = 0;
+        }
+
         // Change the turn
         self.turn = if self.turn == Color::White {
             Color::Black
         } else {
             Color::White
         };
+
+        // Update the game state
+        self.game_state = check_game_state(self);
 
         MoveResult::Allowed
     }
@@ -331,6 +355,11 @@ impl Game {
 }
 
 fn check_game_state(game: &Game) -> GameState {
+    if game.moves_since_capture >= 50 {
+        // 50 move rule
+        return GameState::Draw;
+    }
+
     // Find the kings
     let mut white_king_pos = Position::new(0, 0);
     let mut black_king_pos = Position::new(0, 0);
@@ -349,8 +378,63 @@ fn check_game_state(game: &Game) -> GameState {
         }
     }
 
-    // Check if the move puts the color who made it in check
+    // Check for check
+    let in_check: Option<Color> = check_check(game, white_king_pos, black_king_pos);
+
+    // Check for checkmate
+    if let Some(in_check) = in_check {
+        // check all pseudo possible moves, and for each of these check if it isnt check. if none of these can be found, its checkmate
+        for x in 0..=7 {
+            for y in 0..=7 {
+                let from = Position::new(x, y);
+
+                if let Some(square) = game.get_square(from) {
+                    if square.color != in_check {
+                        continue;
+                    }
+                }
+
+                let possible_moves = game.get_pseudo_possible_moves(from);
+                for to in possible_moves {
+                    let white_king_pos = if from == white_king_pos {
+                        to
+                    } else {
+                        white_king_pos
+                    };
+                    let black_king_pos = if from == black_king_pos {
+                        to
+                    } else {
+                        black_king_pos
+                    };
+
+                    // Clone the board and simulate the move
+                    let mut new_game = game.clone();
+                    new_game.set_square(to, new_game.get_square(from));
+                    new_game.set_square(from, None);
+
+                    if check_check(&new_game, white_king_pos, black_king_pos) == None {
+                        println!("THE SUCCESSFUL MOVE: {:?} -> {:?}", from, to);
+                        return GameState::Check(in_check);
+                    }
+                }
+            }
+        }
+
+        return GameState::Checkmate(in_check);
+    }
+
+    // Check for checkmate
+
+    GameState::Normal
+}
+
+fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) -> Option<Color> {
+    let mut in_check = None;
+    let mut done = false;
     for x in 0..=7 {
+        if done {
+            break;
+        }
         for y in 0..=7 {
             let pos = Position::new(x, y);
 
@@ -358,16 +442,16 @@ fn check_game_state(game: &Game) -> GameState {
 
             for possible_move in possible_moves {
                 if possible_move == white_king_pos {
-                    return GameState::Check(Color::White);
-                }
-
-                if possible_move == black_king_pos {
-                    println!("Move puts black in check!");
-                    return GameState::Check(Color::Black);
+                    in_check = Some(Color::White);
+                    done = true;
+                    break;
+                } else if possible_move == black_king_pos {
+                    in_check = Some(Color::Black);
+                    done = true;
+                    break;
                 }
             }
         }
     }
-
-    GameState::Normal
+    in_check
 }
