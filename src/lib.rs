@@ -229,44 +229,14 @@ impl Game {
         new_game.set_square(to, new_game.get_square(from));
         new_game.set_square(from, None);
 
-        let source_square = new_game.get_square(to).unwrap();
+        let source_square: Piece = new_game.get_square(to).unwrap();
 
-        let mut white_king_pos = Position::new(0, 0);
-        let mut black_king_pos = Position::new(0, 0);
-        for x in 0..=7 {
-            for y in 0..=7 {
-                let pos = Position::new(x, y);
-                if let Some(square) = new_game.get_square(pos) {
-                    if square.piece_type == PieceType::King {
-                        if square.color == Color::White {
-                            white_king_pos = pos;
-                        } else {
-                            black_king_pos = pos;
-                        }
-                    }
-                }
-            }
+        match check_game_state(&new_game) {
+            GameState::Normal => true,
+            GameState::Check(color) => source_square.color != color,
+            GameState::Checkmate(color) => source_square.color != color, // TODO not implemented
+            GameState::Stalemate => true,                                // TODO not implemented
         }
-
-        for x in 0..=7 {
-            for y in 0..=7 {
-                let pos = Position::new(x, y);
-
-                let possible_moves = new_game.get_pseudo_possible_moves(pos);
-
-                for possible_move in possible_moves {
-                    if possible_move == white_king_pos && source_square.color == Color::White {
-                        return false;
-                    }
-
-                    if possible_move == black_king_pos && source_square.color == Color::Black {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        true
     }
 
     pub fn make_move(&mut self, from: Position, to: Position) -> MoveResult {
@@ -297,7 +267,6 @@ impl Game {
             }
         }
 
-        // TODO validate the move by checking the resulting game state
         if !self.validate_move(from, to) {
             return MoveResult::Disallowed;
         }
@@ -359,4 +328,46 @@ impl Game {
 
         possible_moves
     }
+}
+
+fn check_game_state(game: &Game) -> GameState {
+    // Find the kings
+    let mut white_king_pos = Position::new(0, 0);
+    let mut black_king_pos = Position::new(0, 0);
+    for x in 0..=7 {
+        for y in 0..=7 {
+            let pos = Position::new(x, y);
+            if let Some(square) = game.get_square(pos) {
+                if square.piece_type == PieceType::King {
+                    if square.color == Color::White {
+                        white_king_pos = pos;
+                    } else {
+                        black_king_pos = pos;
+                    }
+                }
+            }
+        }
+    }
+
+    // Check if the move puts the color who made it in check
+    for x in 0..=7 {
+        for y in 0..=7 {
+            let pos = Position::new(x, y);
+
+            let possible_moves = game.get_pseudo_possible_moves(pos);
+
+            for possible_move in possible_moves {
+                if possible_move == white_king_pos {
+                    return GameState::Check(Color::White);
+                }
+
+                if possible_move == black_king_pos {
+                    println!("Move puts black in check!");
+                    return GameState::Check(Color::Black);
+                }
+            }
+        }
+    }
+
+    GameState::Normal
 }
