@@ -5,14 +5,13 @@ use std::ops::Not;
 
 // TODO
 // Complete all TODO:s in this file lol
-// Make a function to get king positions (might be useful for displaying warning on king when checked)
-// Export board to fen string
 // Finish fen parsing
-// Implement stalemate
-// Implement piece switching
 // Implement castling
 // Implement en passant
+// (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
+// (low priority) Export board to fen string
 // (low priority) Implement threefold repetition
+// (low priority) Validation to make sure there are 2 kings on the board
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Position {
@@ -94,6 +93,7 @@ pub enum GameState {
     Check(Color),
     Checkmate(Color),
     Draw,
+    AwaitingPromotion(Position),
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -257,14 +257,18 @@ impl Game {
         let source_square: Piece = new_game.get_square(to).unwrap();
 
         match check_game_state(&new_game) {
-            GameState::Normal => true,
             GameState::Check(color) => source_square.color != color,
             GameState::Checkmate(color) => source_square.color != color, // TODO not implemented
-            GameState::Draw => true,                                     // TODO not implemented
+            _ => true,                                                   // TODO not implemented
         }
     }
 
     pub fn make_move(&mut self, from: Position, to: Position) -> MoveResult {
+        if matches!(self.game_state, GameState::AwaitingPromotion(_)) {
+            println!("awaiting promotion!");
+            return MoveResult::Disallowed;
+        }
+
         let source_square = self.get_square(from);
         let target_square = self.get_square(to);
 
@@ -314,7 +318,52 @@ impl Game {
         // Update the game state
         self.game_state = check_game_state(self);
 
+        // Check for promotion
+        for x in 0..=7 {
+            if let Some(piece) = self.get_square(Position::new(x, 0)) {
+                if piece.color == Color::Black && piece.piece_type == PieceType::Pawn {
+                    self.game_state = GameState::AwaitingPromotion(Position::new(x, 0));
+                    break;
+                }
+            }
+
+            if let Some(piece) = self.get_square(Position::new(x, 7)) {
+                if piece.color == Color::White && piece.piece_type == PieceType::Pawn {
+                    self.game_state = GameState::AwaitingPromotion(Position::new(x, 7));
+                    break;
+                }
+            }
+        }
+
         MoveResult::Allowed
+    }
+
+    pub fn promote(&mut self, new_type: PieceType) {
+        let pos = match self.game_state {
+            GameState::AwaitingPromotion(pos) => pos,
+            _ => return,
+        };
+
+        if let Some(piece) = self.get_square(pos) {
+            if piece.piece_type != PieceType::Pawn {
+                return;
+            }
+
+            match new_type {
+                PieceType::King | PieceType::Pawn => return,
+                _ => {
+                    self.set_square(
+                        pos,
+                        Some(Piece {
+                            piece_type: new_type,
+                            color: piece.color,
+                        }),
+                    );
+                }
+            };
+
+            self.game_state = check_game_state(self);
+        }
     }
 
     pub fn get_possible_moves(&self, from: Position) -> Vec<Position> {
@@ -450,14 +499,11 @@ fn cant_move(
                 let mut new_game = game.clone();
                 new_game.set_square(to, new_game.get_square(from));
                 new_game.set_square(from, None);
-
                 if check_check(&new_game, white_king_pos, black_king_pos) == None {
                     return false;
                 }
             }
         }
-
-        return true;
     }
     return true;
 }
