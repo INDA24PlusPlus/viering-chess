@@ -1,19 +1,20 @@
 pub mod moves;
+pub mod tests;
 use crate::moves::*;
+use std::ops::Not;
 
 // TODO
 // Complete all TODO:s in this file lol
 // Make a function to get king positions (might be useful for displaying warning on king when checked)
 // Export board to fen string
 // Finish fen parsing
-// Implement checkmate (MAYBE DONE)
 // Implement stalemate
 // Implement piece switching
 // Implement castling
 // Implement en passant
 // (low priority) Implement threefold repetition
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Position {
     pub x: u8,
     pub y: u8,
@@ -87,7 +88,7 @@ pub enum MoveResult {
     Disallowed,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum GameState {
     Normal,
     Check(Color),
@@ -109,6 +110,17 @@ pub enum PieceType {
 pub enum Color {
     Black,
     White,
+}
+
+impl Not for Color {
+    type Output = Color;
+
+    fn not(self) -> Color {
+        match self {
+            Color::Black => Color::White,
+            Color::White => Color::Black,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -297,11 +309,7 @@ impl Game {
         }
 
         // Change the turn
-        self.turn = if self.turn == Color::White {
-            Color::Black
-        } else {
-            Color::White
-        };
+        self.turn = !self.turn;
 
         // Update the game state
         self.game_state = check_game_state(self);
@@ -413,7 +421,6 @@ fn check_game_state(game: &Game) -> GameState {
                     new_game.set_square(from, None);
 
                     if check_check(&new_game, white_king_pos, black_king_pos) == None {
-                        println!("THE SUCCESSFUL MOVE: {:?} -> {:?}", from, to);
                         return GameState::Check(in_check);
                     }
                 }
@@ -423,18 +430,16 @@ fn check_game_state(game: &Game) -> GameState {
         return GameState::Checkmate(in_check);
     }
 
-    // Check for checkmate
+    // TODO check for stalemate
 
     GameState::Normal
 }
 
 fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) -> Option<Color> {
-    let mut in_check = None;
-    let mut done = false;
+    let mut black_check = false;
+    let mut white_check = false;
+
     for x in 0..=7 {
-        if done {
-            break;
-        }
         for y in 0..=7 {
             let pos = Position::new(x, y);
 
@@ -442,16 +447,22 @@ fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) 
 
             for possible_move in possible_moves {
                 if possible_move == white_king_pos {
-                    in_check = Some(Color::White);
-                    done = true;
-                    break;
-                } else if possible_move == black_king_pos {
-                    in_check = Some(Color::Black);
-                    done = true;
-                    break;
+                    white_check = true;
+                }
+                if possible_move == black_king_pos {
+                    black_check = true;
                 }
             }
         }
     }
-    in_check
+
+    if black_check && white_check {
+        Some(game.turn)
+    } else if black_check {
+        Some(Color::Black)
+    } else if white_check {
+        Some(Color::White)
+    } else {
+        None
+    }
 }
