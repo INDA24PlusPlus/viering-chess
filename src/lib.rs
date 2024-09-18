@@ -76,6 +76,7 @@ pub enum MoveResult {
     Disallowed,
 }
 
+#[derive(Copy, Clone)]
 pub enum GameState {
     Normal,
     Check(Color),
@@ -107,6 +108,7 @@ pub struct Piece {
 
 pub type Square = Option<Piece>;
 
+#[derive(Clone)]
 pub struct Game {
     pub squares: [Square; 8 * 8],
     pub turn: Color,
@@ -217,6 +219,56 @@ impl Game {
         }
     }
 
+    fn validate_move(&self, from: Position, to: Position) -> bool {
+        if !self.pseudo_validate_move(from, to) {
+            return false;
+        }
+
+        // Clone the board and simulate the move
+        let mut new_game = self.clone();
+        new_game.set_square(to, new_game.get_square(from));
+        new_game.set_square(from, None);
+
+        let source_square = new_game.get_square(to).unwrap();
+
+        let mut white_king_pos = Position::new(0, 0);
+        let mut black_king_pos = Position::new(0, 0);
+        for x in 0..=7 {
+            for y in 0..=7 {
+                let pos = Position::new(x, y);
+                if let Some(square) = new_game.get_square(pos) {
+                    if square.piece_type == PieceType::King {
+                        if square.color == Color::White {
+                            white_king_pos = pos;
+                        } else {
+                            black_king_pos = pos;
+                        }
+                    }
+                }
+            }
+        }
+
+        for x in 0..=7 {
+            for y in 0..=7 {
+                let pos = Position::new(x, y);
+
+                let possible_moves = new_game.get_pseudo_possible_moves(pos);
+
+                for possible_move in possible_moves {
+                    if possible_move == white_king_pos && source_square.color == Color::White {
+                        return false;
+                    }
+
+                    if possible_move == black_king_pos && source_square.color == Color::Black {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        true
+    }
+
     pub fn make_move(&mut self, from: Position, to: Position) -> MoveResult {
         let source_square = self.get_square(from);
         let target_square = self.get_square(to);
@@ -245,12 +297,10 @@ impl Game {
             }
         }
 
-        // TODO validate the move according to move pattern for piece type
-        if !self.pseudo_validate_move(from, to) {
+        // TODO validate the move by checking the resulting game state
+        if !self.validate_move(from, to) {
             return MoveResult::Disallowed;
         }
-
-        // TODO validate the move by checking the resulting game state
 
         // Make the move
         self.set_square(to, source_square);
@@ -266,7 +316,21 @@ impl Game {
         MoveResult::Allowed
     }
 
-    pub fn get_pseudo_possible_moves(&self, from: Position) -> Vec<Position> {
+    pub fn get_possible_moves(&self, from: Position) -> Vec<Position> {
+        let pseudo_possible_moves = self.get_pseudo_possible_moves(from);
+
+        let mut possible_moves: Vec<Position> = Vec::new();
+
+        for pseudo_possible_move in pseudo_possible_moves {
+            if self.validate_move(from, pseudo_possible_move) {
+                possible_moves.push(pseudo_possible_move);
+            }
+        }
+
+        possible_moves
+    }
+
+    fn get_pseudo_possible_moves(&self, from: Position) -> Vec<Position> {
         let mut possible_moves: Vec<Position> = Vec::new();
 
         let source_square = self.get_square(from);
