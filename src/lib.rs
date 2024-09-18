@@ -4,10 +4,9 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
-// Complete all TODO:s in this file lol
-// Finish fen parsing
+// Finish fen parsing (error handling, remaining segments)
 // Implement castling
-// Implement en passant
+// Implement en passant (IN PROGRESS)
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
 // (low priority) Export board to fen string
 // (low priority) Implement threefold repetition
@@ -136,7 +135,8 @@ pub struct Game {
     pub squares: [Square; 8 * 8],
     pub turn: Color,
     pub game_state: GameState,
-    moves_since_capture: u32,
+    pub moves_since_capture: u32,
+    pub en_passant_susceptible_pawn: Option<Position>,
 }
 
 impl Game {
@@ -146,6 +146,7 @@ impl Game {
             turn: Color::White,
             game_state: GameState::Normal,
             moves_since_capture: 0,
+            en_passant_susceptible_pawn: None,
         }
     }
 
@@ -216,11 +217,17 @@ impl Game {
             _ => return, // ERROR
         };
 
-        // TODO: future segments
         // segment 3: castling ability
+
         // segment 4: en passant target square
+
         // segment 5: halfmove clock
-        // segment 6: fullmove counter
+        match segments[4].parse::<u32>() {
+            Ok(n) => self.moves_since_capture = n,
+            _ => {}
+        };
+
+        // segment 6: fullmove counter (quite irrelevant, might skip)
 
         self.game_state = check_game_state(&self);
     }
@@ -258,8 +265,8 @@ impl Game {
 
         match check_game_state(&new_game) {
             GameState::Check(color) => source_square.color != color,
-            GameState::Checkmate(color) => source_square.color != color, // TODO not implemented
-            _ => true,                                                   // TODO not implemented
+            GameState::Checkmate(color) => source_square.color != color,
+            _ => true,
         }
     }
 
@@ -318,6 +325,15 @@ impl Game {
         // Update the game state
         self.game_state = check_game_state(self);
 
+        // En passant susceptibility logic
+        self.en_passant_susceptible_pawn = None;
+        if let Some(moved_piece) = self.get_square(to) {
+            if moved_piece.piece_type == PieceType::Pawn && (from.y as i32 - to.y as i32).abs() == 2
+            {
+                self.en_passant_susceptible_pawn = Some(to);
+            }
+        }
+
         // Check for promotion
         for x in 0..=7 {
             if let Some(piece) = self.get_square(Position::new(x, 0)) {
@@ -334,6 +350,8 @@ impl Game {
                 }
             }
         }
+
+        // TODO en passant take the pawn as well
 
         MoveResult::Allowed
     }

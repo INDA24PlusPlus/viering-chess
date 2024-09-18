@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use crate::{Color, Game, Position, PositionBuilder};
+use crate::{Color, Game, PieceType, Position, PositionBuilder};
 
 pub(crate) fn calc_max_move_len(
     game: &Game,
@@ -93,6 +93,20 @@ pub(crate) fn pseudo_validate_pawn_move(game: &Game, from: Position, to: Positio
             if to == diagonal_left && target_square.color != piece.color {
                 return true;
             }
+        } else if to == diagonal_left {
+            // en passant left
+            if let Some(target_square) = PositionBuilder::set(from).walk((-1, 0)).build() {
+                if let Some(en_passant_susceptible_pawn) = game.en_passant_susceptible_pawn {
+                    if let Some(target_piece) = game.get_square(target_square) {
+                        if target_piece.color != piece.color
+                            && target_square == en_passant_susceptible_pawn
+                            && target_piece.piece_type == PieceType::Pawn
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -106,6 +120,20 @@ pub(crate) fn pseudo_validate_pawn_move(game: &Game, from: Position, to: Positio
         if let Some(target_square) = target_square {
             if to == diagonal_right && target_square.color != piece.color {
                 return true;
+            }
+        } else if to == diagonal_right {
+            // en passant right
+            if let Some(target_square) = PositionBuilder::set(from).walk((1, 0)).build() {
+                if let Some(en_passant_susceptible_pawn) = game.en_passant_susceptible_pawn {
+                    if let Some(target_piece) = game.get_square(target_square) {
+                        if target_piece.color != piece.color
+                            && target_square == en_passant_susceptible_pawn
+                            && target_piece.piece_type == PieceType::Pawn
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
     }
