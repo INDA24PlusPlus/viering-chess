@@ -1,342 +1,298 @@
-pub mod pieces;
-use pieces::*;
-use std::cmp::max;
+pub mod moves;
+use crate::moves::*;
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum PieceType {
-    Pawn = 0b000,
-    Knight = 0b001,
-    Bishop = 0b010,
-    Rook = 0b011,
-    Queen = 0b100,
-    King = 0b101
-}
-
-impl PieceType {
-    fn from_u8(value: u8) -> Option<PieceType> {
-        match value {
-            0b000 => Some(PieceType::Pawn),
-            0b001 => Some(PieceType::Knight),
-            0b010 => Some(PieceType::Bishop),
-            0b011 => Some(PieceType::Rook),
-            0b100 => Some(PieceType::Queen),
-            0b101 => Some(PieceType::King),
-            _ => None
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum Color {
-    White = 0b0,
-    Black = 0b1
-}
-
-impl Color {
-    fn from_u8(value: u8) -> Option<Color> {
-        match value {
-            0b0 => Some(Color::White),
-            0b1 => Some(Color::Black),
-            _ => None
-        }
-    }
-}
-
-pub struct ChessGame {
-    pub board: [u8; 64],
-    pub turn: Color
-}
-
-impl ChessGame {
-    fn get_tile(&self, pos: Position) -> u8 {
-        self.board[((7 - pos.y) * 8 + pos.x) as usize]
-    }
-
-    fn set_tile(&mut self, pos: Position, value: u8) {
-        self.board[((7 - pos.y) * 8 + pos.x) as usize] = value;
-    }
-}
-
-pub struct ChessTile {
-    pub piece: PieceType,
-    pub color: Color,
-    pub has_piece: bool
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Position {
-    x: u8,
-    y: u8,
+    pub x: u8,
+    pub y: u8,
+}
+
+impl Position {
+    pub fn new(x: u8, y: u8) -> Self {
+        if x > 7 || y > 7 {
+            panic!("Attempt to initialize Position with out of bounds coordinates. Valid range is 0-7.");
+        }
+
+        Self { x, y }
+    }
 }
 
 #[derive(Clone, Copy)]
 pub struct PositionBuilder {
     position: Option<Position>,
-    color: Color
+    color: Color,
 }
 
 impl PositionBuilder {
     fn set(position: Position) -> PositionBuilder {
-        PositionBuilder { position: Some(position), color: Color::White }
+        PositionBuilder {
+            position: Some(position),
+            color: Color::White,
+        }
     }
 
     fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
-    
+
     fn walk(mut self, amount: (i32, i32)) -> Self {
         if let Some(mut pos) = self.position {
-            let new_pos: (i32, i32) = (
-                pos.x as i32 + amount.0,
-                pos.y as i32 + amount.1
-            );
+            let new_pos: (i32, i32) = (pos.x as i32 + amount.0, pos.y as i32 + amount.1);
             if (0..=7).contains(&new_pos.0) && (0..=7).contains(&new_pos.1) {
                 pos.x = new_pos.0 as u8;
                 pos.y = new_pos.1 as u8;
-                self.position = Some(pos) 
-            }else {
-                self.position = None
-            }
-        }
-        self
-    }
-    
-    fn forward(mut self, amount: i32) -> Self {
-        let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
-        if let Some(mut pos) = self.position {
-            let y_pos: i32 = (pos.y as i32) + (amount * modifier);
-            if (0..=7).contains(&y_pos){
-                pos.y = y_pos as u8;
-                self.position = Some(pos) 
-            }else {
+                self.position = Some(pos)
+            } else {
                 self.position = None
             }
         }
         self
     }
 
-    fn _backward(mut self, amount: i32) -> Self {
+    // Move forward in the direction the piece is facing
+    fn forward(mut self, amount: i32) -> Self {
         let modifier: i32 = if self.color == Color::White { 1 } else { -1 };
         if let Some(mut pos) = self.position {
-            let y_pos: i32 = (pos.y as i32) - (amount * modifier);
-            if (0..=7).contains(&y_pos){
+            let y_pos: i32 = (pos.y as i32) + (amount * modifier);
+            if (0..=7).contains(&y_pos) {
                 pos.y = y_pos as u8;
-                self.position = Some(pos) 
-            }else {
+                self.position = Some(pos)
+            } else {
                 self.position = None
             }
         }
         self
-    } 
+    }
 
     fn build(self) -> Option<Position> {
         self.position
     }
 }
 
-#[derive(PartialEq)]
+#[derive(Debug)]
 pub enum MoveResult {
     Allowed,
-    Disallowed
+    Disallowed,
 }
 
-pub fn new_game() -> ChessGame {
-    from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
+pub enum GameState {
+    Normal,
+    Check(Color),
+    Checkmate(Color),
+    Stalemate,
 }
 
-pub fn from_fen(fen: &str) -> Option<ChessGame> {
-    let mut game = ChessGame{board: [0; 64], turn: Color::White};
+#[derive(Copy, Clone, PartialEq)]
+pub enum PieceType {
+    Pawn,
+    Knight,
+    Bishop,
+    Rook,
+    Queen,
+    King,
+}
 
-    let segments: Vec<&str> = fen.split(" ").collect();
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Color {
+    Black,
+    White,
+}
 
-    if segments.len() != 6 {
-        return None
+#[derive(Copy, Clone)]
+pub struct Piece {
+    pub piece_type: PieceType,
+    pub color: Color,
+}
+
+pub type Square = Option<Piece>;
+
+pub struct Game {
+    pub squares: [Square; 8 * 8],
+    pub turn: Color,
+    pub game_state: GameState,
+}
+
+impl Game {
+    pub fn new() -> Self {
+        Self {
+            squares: [None; 8 * 8],
+            turn: Color::White,
+            game_state: GameState::Normal,
+        }
     }
 
-    // segment 1: board
-    let board_segments: Vec<&str> = segments[0].split("/").collect();
-    if board_segments.len() != 8 {
-        return None
+    pub fn get_square(&self, position: Position) -> Square {
+        self.squares[8 * 8 - 8 - position.y as usize * 8 + position.x as usize]
     }
 
-    for (seg_index, seg) in board_segments.iter().enumerate() {
-        let mut filled_tiles = 0;
-        
-        for chr in seg.chars() {
-            if chr.is_ascii_digit() {
-                filled_tiles += chr.to_digit(10).unwrap() as usize;
-                continue
+    pub fn set_square(&mut self, position: Position, value: Square) {
+        self.squares[8 * 8 - 8 - position.y as usize * 8 + position.x as usize] = value;
+    }
+
+    pub fn load_fen(&mut self, fen: &str) {
+        // Clear board
+        self.squares.iter_mut().for_each(|square| *square = None);
+
+        let segments: Vec<&str> = fen.split(" ").collect();
+
+        if segments.len() != 6 {
+            return; // ERROR
+        }
+
+        let board_segments: Vec<&str> = segments[0].split("/").collect();
+        if board_segments.len() != 8 {
+            return; // ERROR
+        }
+
+        // Parse segment 1: Board
+        for (seg_index, seg) in board_segments.iter().enumerate() {
+            let mut filled_tiles = 0;
+
+            for chr in seg.chars() {
+                if chr.is_ascii_digit() {
+                    filled_tiles += chr.to_digit(10).unwrap() as usize;
+                    continue;
+                }
+
+                let color = if chr.is_uppercase() {
+                    Color::White
+                } else {
+                    Color::Black
+                };
+                let piece: PieceType = match chr.to_ascii_lowercase() {
+                    'p' => PieceType::Pawn,
+                    'r' => PieceType::Rook,
+                    'n' => PieceType::Knight,
+                    'b' => PieceType::Bishop,
+                    'q' => PieceType::Queen,
+                    'k' => PieceType::King,
+                    _ => return, // ERROR
+                };
+
+                self.squares[seg_index * 8 + filled_tiles] = Some(Piece {
+                    piece_type: piece,
+                    color,
+                });
+                filled_tiles += 1;
             }
 
-            let color = if chr.is_uppercase() { Color::White } else { Color::Black }; 
-            let piece: PieceType = match chr.to_ascii_lowercase() {
-                'p' => PieceType::Pawn,
-                'r' => PieceType::Rook,
-                'n' => PieceType::Knight,
-                'b' => PieceType::Bishop,
-                'q' => PieceType::Queen,
-                'k' => PieceType::King,
-                _ => return None
-            };
-
-            game.board[seg_index * 8 + filled_tiles] = pack_tile(piece, color, true);
-            filled_tiles += 1;
-        }
-
-        if filled_tiles != 8 {
-            return None
-        }
-    }
-
-    // segment 2: next turn
-    game.turn = match segments[1] {
-        "w" => Color::White,
-        "b" => Color::Black,
-        _ => return None
-    };
-
-    // TODO: future segments
-    // segment 3: castling ability
-    // segment 4: en passant target square
-    // segment 5: halfmove clock
-    // segment 6: fullmove counter
-
-    Some(game)
-}
-
-fn parse_pos(pos: &str) -> Option<Position> {
-    if pos.len() != 2 {
-        return None
-    }
-
-    let mut chars = pos.chars();
-    let col = chars.next().unwrap();
-    let row = chars.next().unwrap();
-    
-    let mut position = Position{x: 0, y: 0};
-
-    if "abcdefgh".contains(col){
-        position.x = col as u8 - b'a';
-    }
-    if let Some(digit) = row.to_digit(10) {
-        if !(1..=8).contains(&digit) {
-            return None
-        }
-        
-        position.y = digit as u8 - 1;
-    } else {
-        return None
-    }
-    Some(position)
-}
-
-pub fn make_move(game: &mut ChessGame, team: Color, from: &str, to: &str) -> MoveResult {
-    // Make sure the piece moves
-    if from == to {
-        return MoveResult::Disallowed;
-    }
-
-    // Convert from and to to usize instead of str refs
-    let from = match parse_pos(from){
-        Some(val) => val,
-        None => return MoveResult::Disallowed
-    };
-    let to = match parse_pos(to){
-        Some(val) => val,
-        None => return MoveResult::Disallowed
-    };
-
-    // Make sure it's the players turn to move
-    if game.turn != team {
-        return MoveResult::Disallowed
-    }
-
-    let source_tile = unpack_tile(game.get_tile(from));
-
-    // Make sure tile isn't empty
-    if !source_tile.has_piece {
-        return MoveResult::Disallowed
-    }
-
-    // Make sure the piece is the correct color
-    if source_tile.color != team {
-        return MoveResult::Disallowed
-    }
-
-    // Prevent friendly fire
-    let target_tile = unpack_tile(game.get_tile(to));
-    if target_tile.color == team && target_tile.has_piece {
-        return MoveResult::Disallowed
-    }
-
-    // TODO further validation of piece movement patterns, depending on the piece
-    if !validate_move(game, from, to){
-        return MoveResult::Disallowed
-    }
-
-    // Make the move
-    game.set_tile(to, game.get_tile(from));
-    game.set_tile(from, 0);
-
-    game.turn = if team == Color::White { Color::Black } else { Color::White };
-    MoveResult::Allowed
-}
-
-fn validate_move(game: &ChessGame, from: Position, to: Position) -> bool {
-    let source_tile = unpack_tile(game.get_tile(from));
-        
-    match source_tile.piece {
-        PieceType::Pawn => validate_pawn_move(game, from, to),
-        PieceType::Knight => validate_knight_move(game, from, to),
-        PieceType::Bishop => validate_bishop_move(game, from, to),
-        PieceType::Rook => validate_rook_move(game, from, to),
-        PieceType::King => validate_king_move(game, from, to),
-        PieceType::Queen => validate_queen_move(game, from, to)
-    }
-}
-
-fn calc_max_move_len(game: &ChessGame, base: PositionBuilder, direction: (i32, i32), can_capture: bool) -> i32 {
-    let mut move_len = 0;
-    let mut builder = base;
-    loop {
-        builder = builder.walk(direction);
-        if let Some(pos) = builder.position {
-            let tile = unpack_tile(game.get_tile(pos));
-            if tile.has_piece {
-                return if tile.color == game.turn { move_len } else if can_capture { move_len + 1} else { move_len };
+            if filled_tiles != 8 {
+                return; // ERROR
             }
-            move_len += 1;
-            continue
         }
-        return move_len
+
+        // Parse segment 2: Turn
+        self.turn = match segments[1] {
+            "w" => Color::White,
+            "b" => Color::Black,
+            _ => return, // ERROR
+        };
+
+        // TODO: future segments
+        // segment 3: castling ability
+        // segment 4: en passant target square
+        // segment 5: halfmove clock
+        // segment 6: fullmove counter
+
+        // TODO this should probably check game state as well, right?
     }
-}
 
-pub fn pack_tile(piece: PieceType, color: Color, has_piece: bool) -> u8 {
-    let piece = piece as u8;  
-    let color = color as u8;
+    fn pseudo_validate_move(&self, from: Position, to: Position) -> bool {
+        let source_square = self.get_square(from);
 
-    (piece & 0b111) | (color << 3) | ((has_piece as u8) << 4)
-}
+        if source_square.is_none() {
+            return false;
+        }
 
-pub fn unpack_tile(packed: u8) -> ChessTile {
-    let piece = packed & 0b111;
-    let color = (packed >> 3) & 0b1;
-    let has_piece = (packed >> 4) & 0b1 == 1;
+        let source_square = source_square.unwrap();
 
-    let piece = PieceType::from_u8(piece).unwrap();
-    let color = Color::from_u8(color).unwrap();
+        match source_square.piece_type {
+            PieceType::Pawn => pseudo_validate_pawn_move(&self, from, to),
+            PieceType::Knight => pseudo_validate_knight_move(&self, from, to),
+            PieceType::Bishop => pseudo_validate_bishop_move(&self, from, to),
+            PieceType::Rook => pseudo_validate_rook_move(&self, from, to),
+            PieceType::Queen => pseudo_validate_queen_move(&self, from, to),
+            PieceType::King => pseudo_validate_king_move(&self, from, to),
+        }
+    }
 
-    ChessTile{piece, color, has_piece}
-}
+    pub fn make_move(&mut self, from: Position, to: Position) -> MoveResult {
+        let source_square = self.get_square(from);
+        let target_square = self.get_square(to);
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        // Move is invalid if the piece didn't move
+        if from == to {
+            return MoveResult::Disallowed;
+        }
 
-    #[test]
-    fn it_works() {
+        // Move is invalid if the source tile is empty
+        if source_square.is_none() {
+            return MoveResult::Disallowed;
+        }
 
+        // Move is invalid if it's not the correct turn
+        if let Some(source_square) = source_square {
+            if source_square.color != self.turn {
+                return MoveResult::Disallowed;
+            }
+        }
+
+        // Prevent friendly fire
+        if let Some(target_square) = target_square {
+            if target_square.color == self.turn {
+                return MoveResult::Disallowed;
+            }
+        }
+
+        // TODO validate the move according to move pattern for piece type
+        if !self.pseudo_validate_move(from, to) {
+            return MoveResult::Disallowed;
+        }
+
+        // TODO validate the move by checking the resulting game state
+
+        // Make the move
+        self.set_square(to, source_square);
+        self.set_square(from, None);
+
+        // Change the turn
+        self.turn = if self.turn == Color::White {
+            Color::Black
+        } else {
+            Color::White
+        };
+
+        MoveResult::Allowed
+    }
+
+    pub fn get_pseudo_possible_moves(&self, from: Position) -> Vec<Position> {
+        let mut possible_moves: Vec<Position> = Vec::new();
+
+        let source_square = self.get_square(from);
+
+        if source_square.is_none() {
+            return possible_moves;
+        }
+        let source_square = source_square.unwrap();
+
+        for x in 0..=7 {
+            for y in 0..=7 {
+                let pos = Position { x, y };
+
+                // Skip all positions which contain pieces of the same team
+                if let Some(target_tile) = self.get_square(pos) {
+                    if target_tile.color == source_square.color {
+                        continue;
+                    }
+                }
+
+                if self.pseudo_validate_move(from, pos) {
+                    possible_moves.push(pos)
+                }
+            }
+        }
+
+        possible_moves
     }
 }
