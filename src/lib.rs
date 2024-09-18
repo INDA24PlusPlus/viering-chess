@@ -389,50 +389,77 @@ fn check_game_state(game: &Game) -> GameState {
     // Check for check
     let in_check: Option<Color> = check_check(game, white_king_pos, black_king_pos);
 
-    // Check for checkmate
-    if let Some(in_check) = in_check {
-        // check all pseudo possible moves, and for each of these check if it isnt check. if none of these can be found, its checkmate
-        for x in 0..=7 {
-            for y in 0..=7 {
-                let from = Position::new(x, y);
+    // Check if teams can move
+    let white_cant_move = cant_move(game, Color::White, white_king_pos, black_king_pos);
+    let black_cant_move = cant_move(game, Color::Black, white_king_pos, black_king_pos);
 
-                if let Some(square) = game.get_square(from) {
-                    if square.color != in_check {
-                        continue;
-                    }
+    // Check / checkmate / stalemate / normal
+    match in_check {
+        Some(in_check) => {
+            if in_check == Color::White && white_cant_move {
+                return GameState::Checkmate(Color::White);
+            }
+            if in_check == Color::Black && black_cant_move {
+                return GameState::Checkmate(Color::Black);
+            }
+
+            return GameState::Check(in_check);
+        }
+        None => {
+            if (white_cant_move && game.turn == Color::White)
+                || (black_cant_move && game.turn == Color::Black)
+            {
+                return GameState::Draw;
+            }
+            return GameState::Normal;
+        }
+    }
+}
+
+fn cant_move(
+    game: &Game,
+    color: Color,
+    white_king_pos: Position,
+    black_king_pos: Position,
+) -> bool {
+    // check all pseudo possible moves, and for each of these check if it isnt check. if none of these can be found, its checkmate
+    for x in 0..=7 {
+        for y in 0..=7 {
+            let from = Position::new(x, y);
+
+            if let Some(square) = game.get_square(from) {
+                if square.color != color {
+                    continue;
                 }
+            }
 
-                let possible_moves = game.get_pseudo_possible_moves(from);
-                for to in possible_moves {
-                    let white_king_pos = if from == white_king_pos {
-                        to
-                    } else {
-                        white_king_pos
-                    };
-                    let black_king_pos = if from == black_king_pos {
-                        to
-                    } else {
-                        black_king_pos
-                    };
+            let possible_moves = game.get_pseudo_possible_moves(from);
+            for to in possible_moves {
+                let white_king_pos = if from == white_king_pos {
+                    to
+                } else {
+                    white_king_pos
+                };
+                let black_king_pos = if from == black_king_pos {
+                    to
+                } else {
+                    black_king_pos
+                };
 
-                    // Clone the board and simulate the move
-                    let mut new_game = game.clone();
-                    new_game.set_square(to, new_game.get_square(from));
-                    new_game.set_square(from, None);
+                // Clone the board and simulate the move
+                let mut new_game = game.clone();
+                new_game.set_square(to, new_game.get_square(from));
+                new_game.set_square(from, None);
 
-                    if check_check(&new_game, white_king_pos, black_king_pos) == None {
-                        return GameState::Check(in_check);
-                    }
+                if check_check(&new_game, white_king_pos, black_king_pos) == None {
+                    return false;
                 }
             }
         }
 
-        return GameState::Checkmate(in_check);
+        return true;
     }
-
-    // TODO check for stalemate
-
-    GameState::Normal
+    return true;
 }
 
 fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) -> Option<Color> {
