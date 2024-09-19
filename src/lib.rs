@@ -300,6 +300,30 @@ impl Game {
             return false;
         }
 
+        // some castling validation
+        {
+            let x_diff = to.x as i32 - from.x as i32;
+            if x_diff.abs() == 2 {
+                let source_square: Piece = self.get_square(from).unwrap();
+
+                // cant perform castling when in check
+                if self.game_state == GameState::Check(source_square.color) {
+                    return false;
+                }
+
+                // make sure king stepping pos isn't in check
+                let res: i32 = from.x as i32 + x_diff/2;
+                let stepping_pos = Position::new(res as u8, from.y);
+                let mut new_game = self.clone();
+                new_game.set_square(stepping_pos, new_game.get_square(from));
+                new_game.set_square(from, None);
+                let state = check_game_state(&new_game);
+                if state == GameState::Check(source_square.color) {
+                    return false; 
+                }
+            }
+        }
+
         // Clone the board and simulate the move
         let mut new_game = self.clone();
         new_game.set_square(to, new_game.get_square(from));
