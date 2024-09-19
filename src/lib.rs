@@ -140,13 +140,25 @@ pub struct Game {
 
 impl Game {
     pub fn new() -> Self {
-        Self {
+        let mut game = Self {
             squares: [None; 8 * 8],
             turn: Color::White,
             game_state: GameState::Normal,
             moves_since_capture: 0,
             en_passant_susceptible_pawn: None,
-        }
+        };
+
+        game.load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        
+        game
+    }
+
+    pub fn clear_board(&mut self) {
+        self.squares = [None; 8 * 8];
+        self.turn = Color::White;
+        self.game_state = GameState::Normal;
+        self.moves_since_capture = 0;
+        self.en_passant_susceptible_pawn = None;
     }
 
     pub fn get_square(&self, position: Position) -> Square {
