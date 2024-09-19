@@ -32,8 +32,8 @@ game.load_fen("rnbqkbnr/pppppp1p/8/8/6p1/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 // clears all pieces from the board
 game.clear_board(); 
 
-// promotes the pawn at 5,7 (F8)
-let result: MoveResult = game.promote(Position::new(5, 7), PieceType::Queen); 
+// promotes a pawn (tries to)
+let result: MoveResult = game.promote(PieceType::Queen); 
 
 // get square at 3,4 (D5)
 let square: Option<Piece> = game.get_square(Position::new(3, 4));
