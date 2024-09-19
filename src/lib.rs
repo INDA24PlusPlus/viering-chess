@@ -4,6 +4,7 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
+// TODO castling should not be able to be performed while king is in check, and king can also not pass through an attacked square
 // Finish fen parsing error handling
 // Finish documentation
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
