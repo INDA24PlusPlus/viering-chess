@@ -4,8 +4,7 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
-// Implement castling (IN PROGRESS)
-// Finish fen parsing (error handling, remaining segments)
+// Finish fen parsing error handling
 // Finish documentation
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
 // (low priority) Export board to fen string
@@ -23,6 +22,24 @@ impl Position {
         if x > 7 || y > 7 {
             panic!("Attempt to initialize Position with out of bounds coordinates. Valid range is 0-7.");
         }
+        Self { x, y }
+    }
+
+    pub fn from_string(string: &str) -> Self {
+        let chars: Vec<char> = string.chars().collect();
+
+        let file = chars[0].to_ascii_lowercase();
+        let x = match file {
+            'a'..='h' => (file as u8) - b'a',
+            _ => panic!("Attempt to initialize Position with invalid algebraic notation."),
+        };
+
+        let rank = chars[1].to_ascii_lowercase();
+        let y = match rank {
+            '1'..='8' => (rank as u8) - b'1',
+            _ => panic!("Attempt to initialize Position with invalid algebraic notation."),
+        };
+
         Self { x, y }
     }
 }
@@ -244,6 +261,10 @@ impl Game {
         self.white_castling_queenside_available = segments[2].contains("Q");
 
         // segment 4: en passant target square
+        self.en_passant_susceptible_pawn = match segments[3] {
+            "-" => None,
+            _ => Some(Position::from_string(segments[3]))
+        };
 
         // segment 5: halfmove clock
         if let Ok(n) = segments[4].parse::<u32>() { self.moves_since_capture = n };

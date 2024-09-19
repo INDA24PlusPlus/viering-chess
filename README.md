@@ -4,13 +4,9 @@ Simple chess library written in rust.
 
 ## Features
 - Basic rules: move validation for all piece types, checking, checkmate, stalemate, etc
+- All advanced rules: promoting, castling, en passant, fifty-move rule, threefold repetition (NOT IMPLEMENTED YET), etc
 - Getting all possible moves for a piece
-- Promoting pawns
 - Importing boards from fen strings
-- En passant
-- Fifty-move rule
-- Threefold repetition (NOT IMPLEMENTED YET)
-- Castling (NOT IMPLEMENTED YET)
 - Maybe more might be forgetting stuff, check docs instead :)
 
 ## Installation
