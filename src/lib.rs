@@ -4,8 +4,8 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
-// Finish fen parsing (error handling, remaining segments)
 // Implement castling
+// Finish fen parsing (error handling, remaining segments)
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
 // (low priority) Export board to fen string
 // (low priority) Implement threefold repetition
@@ -79,7 +79,7 @@ impl PositionBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum MoveResult {
     Allowed,
     Disallowed,
@@ -310,10 +310,9 @@ impl Game {
         }
 
         // En passant should capture piece (detected by pawn moving diagonally without a piece in its target square)
-        if (from.x as i32 - to.x as i32).abs() == 1 && (from.y as i32 - to.y as i32).abs() == 1 {
-            if !target_square_had_piece && source_square.unwrap().piece_type == PieceType::Pawn {
-                self.set_square(Position::new(to.x, from.y), None);
-            }
+        if (from.x as i32 - to.x as i32).abs() == 1 && (from.y as i32 - to.y as i32).abs() == 1 
+            && !target_square_had_piece && source_square.unwrap().piece_type == PieceType::Pawn {
+            self.set_square(Position::new(to.x, from.y), None);
         }
 
         // Make the move
