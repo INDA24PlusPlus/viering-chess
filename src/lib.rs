@@ -6,7 +6,6 @@ use std::ops::Not;
 // TODO
 // Finish fen parsing (error handling, remaining segments)
 // Implement castling
-// Implement en passant (IN PROGRESS)
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
 // (low priority) Export board to fen string
 // (low priority) Implement threefold repetition
@@ -310,6 +309,13 @@ impl Game {
             return MoveResult::Disallowed;
         }
 
+        // En passant should capture piece (detected by pawn moving diagonally without a piece in its target square)
+        if (from.x as i32 - to.x as i32).abs() == 1 && (from.y as i32 - to.y as i32).abs() == 1 {
+            if !target_square_had_piece && source_square.unwrap().piece_type == PieceType::Pawn {
+                self.set_square(Position::new(to.x, from.y), None);
+            }
+        }
+
         // Make the move
         self.set_square(to, source_square);
         self.set_square(from, None);
@@ -350,8 +356,6 @@ impl Game {
                 }
             }
         }
-
-        // TODO en passant take the pawn as well
 
         MoveResult::Allowed
     }
@@ -489,7 +493,7 @@ fn cant_move(
     white_king_pos: Position,
     black_king_pos: Position,
 ) -> bool {
-    // check all pseudo possible moves, and for each of these check if it isnt check. if none of these can be found, its checkmate
+    // check all pseudo possible moves, and for each of these check if it isnt check
     for x in 0..=7 {
         for y in 0..=7 {
             let from = Position::new(x, y);
@@ -502,6 +506,7 @@ fn cant_move(
 
             let possible_moves = game.get_pseudo_possible_moves(from);
             for to in possible_moves {
+                // update king positions if they were the ones who moved
                 let white_king_pos = if from == white_king_pos {
                     to
                 } else {
@@ -530,6 +535,7 @@ fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) 
     let mut black_check = false;
     let mut white_check = false;
 
+    // Check if there are any possible moves that could capture a king
     for x in 0..=7 {
         for y in 0..=7 {
             let pos = Position::new(x, y);
@@ -547,6 +553,7 @@ fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) 
         }
     }
 
+    // Logic for who's in check
     if black_check && white_check {
         Some(game.turn)
     } else if black_check {
