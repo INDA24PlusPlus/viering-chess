@@ -340,6 +340,33 @@ impl Game {
         }
 
         // castling logic
+
+        // make the castling move (if one was made)
+        let move_diff = to.x as i32 - from.x as i32;
+        if source_square.piece_type == PieceType::King && move_diff.abs() == 2 {
+            if source_square.color == Color::White {
+                if move_diff == -2 && self.white_castling_queenside_available {
+                    self.set_square(Position::new(to.x + 1, from.y), self.get_square(Position::new(0, from.y)));
+                    self.set_square(Position::new(0, from.y), None);
+                    self.white_castling_queenside_available = false; 
+                }else if move_diff == 2 && self.white_castling_kingside_available {
+                    self.set_square(Position::new(to.x - 1, from.y), self.get_square(Position::new(7, from.y)));
+                    self.set_square(Position::new(7, from.y), None);
+                    self.white_castling_kingside_available = false;
+                }
+            }else if source_square.color == Color::Black {
+                if move_diff == -2 && self.black_castling_queenside_available {
+                    self.set_square(Position::new(to.x + 1, from.y), self.get_square(Position::new(0, from.y)));
+                    self.set_square(Position::new(0, from.y), None);
+                    self.black_castling_queenside_available = false;
+                }else if move_diff == 2 && self.black_castling_kingside_available {
+                    self.set_square(Position::new(to.x - 1, from.y), self.get_square(Position::new(7, from.y)));
+                    self.set_square(Position::new(7, from.y), None);
+                    self.black_castling_kingside_available = false;
+                }
+            }
+        }
+
         // disable castling availability if moving rook / king  
         if source_square.piece_type == PieceType::King {
             match source_square.color {
@@ -362,10 +389,6 @@ impl Game {
                 _ => {}
             }
         }
-
-        // make the castling move (if one was made)
-        // TODO
-
 
         // Make the move
         self.set_square(to, Some(source_square));
