@@ -44,8 +44,16 @@ let square: Option<Piece> = game.set_square(Position::new(3, 4), Some{
    color: Color::Black
 });
 
-// prints out the game state (normal, check(color), checkmate(color), draw)
-println!("{:?}", game.game_state);
+// printing some useful info:
+// game state (normal, check(color), checkmate(color), draw)
+// current turn (color)
+// moves since last capture (u32)
+println!(
+    "{:?}, {:?}, {}",
+    game.game_state,
+    game.turn,
+    game.moves_since_capture
+);
 ```
 
 ## Docs
