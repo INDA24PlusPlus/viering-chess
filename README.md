@@ -31,6 +31,21 @@ game.load_fen("rnbqkbnr/pppppp1p/8/8/6p1/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
 
 // clears all pieces from the board
 game.clear_board(); 
+
+// promotes the pawn at 5,7 (F8)
+let result: MoveResult = game.promote(Position::new(5, 7), PieceType::Queen); 
+
+// get square at 3,4 (D5)
+let square: Option<Piece> = game.get_square(Position::new(3, 4));
+
+// set square at 3,4 (D5) to a black rook
+let square: Option<Piece> = game.set_square(Position::new(3, 4), Some{
+   piece_type: PieceType::Rook,
+   color: Color::Black
+});
+
+// prints out the game state (normal, check(color), checkmate(color), draw)
+println!("{:?}", game.game_state);
 ```
 
 ## Docs

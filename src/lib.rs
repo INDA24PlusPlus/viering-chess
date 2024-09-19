@@ -371,19 +371,19 @@ impl Game {
         MoveResult::Allowed
     }
 
-    pub fn promote(&mut self, new_type: PieceType) {
+    pub fn promote(&mut self, new_type: PieceType) -> MoveResult {
         let pos = match self.game_state {
             GameState::AwaitingPromotion(pos) => pos,
-            _ => return,
+            _ => return MoveResult::Disallowed,
         };
 
         if let Some(piece) = self.get_square(pos) {
             if piece.piece_type != PieceType::Pawn {
-                return;
+                return MoveResult::Disallowed;
             }
 
             match new_type {
-                PieceType::King | PieceType::Pawn => return,
+                PieceType::King | PieceType::Pawn => return MoveResult::Disallowed,
                 _ => {
                     self.set_square(
                         pos,
@@ -396,7 +396,10 @@ impl Game {
             };
 
             self.game_state = check_game_state(self);
+            return MoveResult::Allowed;
         }
+        
+        MoveResult::Disallowed
     }
 
     pub fn get_possible_moves(&self, from: Position) -> Vec<Position> {
