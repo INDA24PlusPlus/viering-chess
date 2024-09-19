@@ -26,7 +26,6 @@ use viering_chess::*;
 ```
 
 ## Example usage
-
 ```rs
 // creates a chess game with the starting board
 let mut game = Game::new(); 
