@@ -207,6 +207,28 @@ pub(crate) fn pseudo_validate_king_move(game: &Game, from: Position, to: Positio
         base_builder.walk((1, -1)).build(),
     ];
 
+    // castling
+    let offset_y = if piece.color ==  Color::White { 0 } else { 7 };
+    
+    if from == Position::new(4, offset_y) {
+        // queenside
+        if to == Position::new(2, offset_y) && game.get_square(Position::new(3, offset_y)).is_none() && game.get_square(Position::new(2, offset_y)).is_none() && game.get_square(Position::new(1, offset_y)).is_none() {
+            if let Some(last_piece) = game.get_square(Position::new(0, offset_y)) {
+                if last_piece.piece_type == PieceType::Rook && ((piece.color == Color::White && game.white_castling_queenside_available) || (piece.color == Color::Black && game.black_castling_queenside_available)) {
+                    return true;
+                }
+            } 
+        }
+        // kingside
+        if to == Position::new(6, offset_y) && game.get_square(Position::new(5, offset_y)).is_none() && game.get_square(Position::new(6, offset_y)).is_none() {
+            if let Some(last_piece) = game.get_square(Position::new(7, offset_y)) {
+                if last_piece.piece_type == PieceType::Rook && ((piece.color == Color::White && game.white_castling_kingside_available) || (piece.color == Color::Black && game.black_castling_kingside_available)) {
+                    return true;
+                }
+            } 
+        }
+    }
+
     return valid_positions.iter().flatten().any(|pos| *pos == to);
 }
 

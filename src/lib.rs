@@ -4,8 +4,9 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
-// Implement castling
+// Implement castling (IN PROGRESS)
 // Finish fen parsing (error handling, remaining segments)
+// Finish documentation
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
 // (low priority) Export board to fen string
 // (low priority) Implement threefold repetition
@@ -136,6 +137,10 @@ pub struct Game {
     pub game_state: GameState,
     pub moves_since_capture: u32,
     pub en_passant_susceptible_pawn: Option<Position>,
+    pub white_castling_kingside_available: bool,
+    pub white_castling_queenside_available: bool,
+    pub black_castling_kingside_available: bool,
+    pub black_castling_queenside_available: bool
 }
 
 impl Game {
@@ -146,6 +151,10 @@ impl Game {
             game_state: GameState::Normal,
             moves_since_capture: 0,
             en_passant_susceptible_pawn: None,
+            white_castling_kingside_available: true,
+            white_castling_queenside_available: true,
+            black_castling_kingside_available: true,
+            black_castling_queenside_available: true
         };
 
         game.load_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -229,18 +238,20 @@ impl Game {
         };
 
         // segment 3: castling ability
+        self.black_castling_kingside_available = segments[2].contains("k");
+        self.black_castling_queenside_available = segments[2].contains("q");
+        self.white_castling_kingside_available = segments[2].contains("K");
+        self.white_castling_queenside_available = segments[2].contains("Q");
 
         // segment 4: en passant target square
 
         // segment 5: halfmove clock
-        match segments[4].parse::<u32>() {
-            Ok(n) => self.moves_since_capture = n,
-            _ => {}
-        };
+        if let Ok(n) = segments[4].parse::<u32>() { self.moves_since_capture = n };
 
         // segment 6: fullmove counter (quite irrelevant, might skip)
 
-        self.game_state = check_game_state(&self);
+        // make sure to update game state
+        self.game_state = check_game_state(self);
     }
 
     fn pseudo_validate_move(&self, from: Position, to: Position) -> bool {
@@ -282,8 +293,8 @@ impl Game {
     }
 
     pub fn make_move(&mut self, from: Position, to: Position) -> MoveResult {
-        if matches!(self.game_state, GameState::AwaitingPromotion(_)) {
-            println!("awaiting promotion!");
+        // Can't move if awaiting promotion or in check
+        if matches!(self.game_state, GameState::AwaitingPromotion(_)) || matches!(self.game_state, GameState::Checkmate(_)){
             return MoveResult::Disallowed;
         }
 
@@ -301,10 +312,9 @@ impl Game {
         }
 
         // Move is invalid if it's not the correct turn
-        if let Some(source_square) = source_square {
-            if source_square.color != self.turn {
-                return MoveResult::Disallowed;
-            }
+        let source_square = source_square.unwrap();
+        if source_square.color != self.turn {
+            return MoveResult::Disallowed;
         }
 
         let mut target_square_had_piece = false;
@@ -321,14 +331,44 @@ impl Game {
             return MoveResult::Disallowed;
         }
 
+        // below this line, the move WILL go through
+
         // En passant should capture piece (detected by pawn moving diagonally without a piece in its target square)
         if (from.x as i32 - to.x as i32).abs() == 1 && (from.y as i32 - to.y as i32).abs() == 1 
-            && !target_square_had_piece && source_square.unwrap().piece_type == PieceType::Pawn {
+            && !target_square_had_piece && source_square.piece_type == PieceType::Pawn {
             self.set_square(Position::new(to.x, from.y), None);
         }
 
+        // castling logic
+        // disable castling availability if moving rook / king  
+        if source_square.piece_type == PieceType::King {
+            match source_square.color {
+                Color::Black => {
+                    self.black_castling_queenside_available = false;
+                    self.black_castling_kingside_available = false;
+                },
+                Color::White => {
+                    self.white_castling_queenside_available = false;
+                    self.white_castling_kingside_available = false;
+                }
+            } 
+        }
+        if source_square.piece_type == PieceType::Rook {
+            match from {
+                Position{x: 0, y: 0} => self.white_castling_queenside_available = false,
+                Position{x: 7, y: 0} => self.white_castling_kingside_available = false,
+                Position{x: 0, y: 7} => self.black_castling_queenside_available = false,
+                Position{x: 7, y: 7} => self.black_castling_kingside_available = false,
+                _ => {}
+            }
+        }
+
+        // make the castling move (if one was made)
+        // TODO
+
+
         // Make the move
-        self.set_square(to, source_square);
+        self.set_square(to, Some(source_square));
         self.set_square(from, None);
 
         self.moves_since_capture += 1;
