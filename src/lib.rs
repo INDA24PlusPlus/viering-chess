@@ -4,7 +4,6 @@ use crate::moves::*;
 use std::ops::Not;
 
 // TODO
-// TODO castling should not be able to be performed while king is in check, and king can also not pass through an attacked square
 // Finish fen parsing error handling
 // Finish documentation
 // (low priority) Make a function to get king positions (might be useful for displaying warning on king when checked)
@@ -582,7 +581,7 @@ fn check_game_state(game: &Game) -> GameState {
                 return GameState::Checkmate(Color::Black);
             }
 
-            return GameState::Check(in_check);
+            GameState::Check(in_check)
         }
         None => {
             if (white_cant_move && game.turn == Color::White)
@@ -590,7 +589,7 @@ fn check_game_state(game: &Game) -> GameState {
             {
                 return GameState::Draw;
             }
-            return GameState::Normal;
+            GameState::Normal
         }
     }
 }
@@ -630,13 +629,13 @@ fn cant_move(
                 let mut new_game = game.clone();
                 new_game.set_square(to, new_game.get_square(from));
                 new_game.set_square(from, None);
-                if check_check(&new_game, white_king_pos, black_king_pos) == None {
+                if check_check(&new_game, white_king_pos, black_king_pos).is_none() {
                     return false;
                 }
             }
         }
     }
-    return true;
+    true
 }
 
 fn check_check(game: &Game, white_king_pos: Position, black_king_pos: Position) -> Option<Color> {
