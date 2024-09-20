@@ -22,6 +22,7 @@ use viering_chess::*;
 ```
 
 ## Example usage
+Below is some examples of how to use the API. See [this link](https://gist.github.com/freeeranger/e88f6834ebb156c28da3d5aa0f04e9c6) for a fully functional terminal chess client. 
 ```rs
 // creates a chess game with the starting board
 let mut game = Game::new(); 
