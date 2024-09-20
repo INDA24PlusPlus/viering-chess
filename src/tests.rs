@@ -2,7 +2,7 @@
 mod chess_tests {
     use std::collections::HashSet;
 
-    use crate::{Color, Game, GameState, MoveResult, Position};
+    use crate::{Color, Game, GameState, MoveResult, PieceType, Position};
 
     #[test]
     fn checkmate_tests() {
@@ -60,7 +60,7 @@ mod chess_tests {
     }
 
     #[test]
-    fn check_possible_moves() {
+    fn check_possible_moves_test() {
         let mut game = Game::new();
 
         // scenario 1
@@ -84,6 +84,29 @@ mod chess_tests {
             possible_moves.into_iter(),
             correct_possible_moves.into_iter()
         ));
+    }
+
+    #[test]
+    fn castling_tests(){
+        let mut game = Game::new();
+        
+        // scenario 1
+        game.load_fen("rn1qkbnr/pppppppp/8/8/b7/8/PP1PPPPP/R3KBNR w KQkq - 0 1");
+        assert!(game.make_move(Position::from_string("e1"), Position::from_string("c1")) == MoveResult::Disallowed);
+
+        // scenario 2
+        game.load_fen("rn1qkbnr/pppppppp/8/8/8/8/PPPPPPPP/R3KBNR w KQkq - 0 1");
+        assert!(game.make_move(Position::from_string("e1"), Position::from_string("c1")) == MoveResult::Allowed);
+        
+        let square = game.get_square(Position::from_string("d1"));
+        assert!(square.is_some());
+        if let Some(square) = square {
+            assert!(square.piece_type == PieceType::Rook);
+        }
+
+        // scenario 3
+        game.load_fen("rn1qkbn1/ppppppp1/6r1/8/8/8/PPPPP2P/RNBQK2R w KQq - 0 1");
+        assert!(game.make_move(Position::from_string("e1"), Position::from_string("g1")) == MoveResult::Disallowed);
     }
 
     // Checks if two vectors contain the exact same elements (order doesn't matter)
